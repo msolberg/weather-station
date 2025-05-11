@@ -1,3 +1,8 @@
+# Copyright Michael Solberg <mpsolberg@gmail.com>
+# Based on AWS IOT SDK samples:
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0.
+
 from awscrt import mqtt, http
 from awsiot import mqtt_connection_builder
 import sys
