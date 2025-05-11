@@ -123,16 +123,16 @@ if __name__ == '__main__':
 
     while True:
         data = get_temperature_and_humidity()
-        if data['temperature_f'] is not None:
-            temperature_f = data['temperature_f']
-            humidity = data['humidity']
         data['pressure'] = get_pressure()
         message = json.dumps(data)
-        print("Publishing message to topic '{}': {}".format(message_topic, message))
-        mqtt_connection.publish(
-            topic=message_topic,
-            payload=message,
-            qos=mqtt.QoS.AT_LEAST_ONCE)
+        if data['temperature_f'] is not None:
+            print("Publishing message to topic '{}': {}".format(message_topic, message))
+            mqtt_connection.publish(
+                topic=message_topic,
+                payload=message,
+                qos=mqtt.QoS.AT_LEAST_ONCE)
+        else:
+            print("Failed to retrieve data from sensors")
         time.sleep(5)
 
     # Disconnect
