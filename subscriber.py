@@ -15,7 +15,6 @@ message_topic="MQTT_TOPIC"
 station_id="STATION_ID"
 station_pass="STATION_PASS"
 
-received_count = 0
 received_all_event = threading.Event()
 
 temperature = 69
@@ -50,16 +49,23 @@ def on_resubscribe_complete(resubscribe_future):
 # Callback when the subscribed topic receives a message
 def on_message_received(topic, payload, dup, qos, retain, **kwargs):
     print("Received message from topic '{}': {}".format(topic, payload))
-    global received_count
     global temperature
     global humidity
     global pressure
+
+    try:
+        data = json.loads(payload)
+        print("Got payload %s"% (payload,))
+        temperature = data['temperature_f']
+        humidity = data['humidity']
+        pressure = data['pressure']
+    except json.decoder.JSONDecodeError:
+        print("Received malformed message %s"% (payload))
+        return
+    except KeyError:
+        print("Received missing data %s"% (payload))
+        return
     
-    a = str(payload).split()
-    temperature = a[1].strip(',')
-    humidity = a[3].strip(',')
-    pressure = a[5].strip('"\'')
-    print("Got temperature %s, humidity %s, pressure %s"% (temperature, humidity, pressure))
     # Send data to Wunderground
     inches = float(pressure) / 33.8639
     # https://en.wikipedia.org/wiki/Dew_point#Simple_approximation
@@ -68,7 +74,6 @@ def on_message_received(topic, payload, dup, qos, retain, **kwargs):
     r = requests.get("https://weatherstation.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&humidity=%s&tempf=%s&baromin=%s&dewptf=%s&action=updateraw"% (station_id, station_pass, humidity, temperature, inches, dewpoint))
     if r.status_code == 200:
         print("Uploaded data to Wunderground")
-    received_count += 1
 
 # Callback when the connection successfully connects
 def on_connection_success(connection, callback_data):

@@ -127,12 +127,11 @@ if __name__ == '__main__':
             temperature_f = data['temperature_f']
             humidity = data['humidity']
         data['pressure'] = get_pressure()
-        message = "temperature: %f, humidity: %f, pressure: %f"% (temperature_f, humidity, pressure)
+        message = json.dumps(data)
         print("Publishing message to topic '{}': {}".format(message_topic, message))
-        message_json = json.dumps(message)
         mqtt_connection.publish(
             topic=message_topic,
-            payload=message_json,
+            payload=message,
             qos=mqtt.QoS.AT_LEAST_ONCE)
         time.sleep(5)
 
