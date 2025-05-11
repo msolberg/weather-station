@@ -3,7 +3,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0.
 
-
+import configparser
 from awscrt import mqtt, http
 from awsiot import mqtt_connection_builder
 import sys
@@ -14,12 +14,15 @@ import json
 import smbus2
 import bme280
 
-endpoint="AWS_IOT_ENDPOINT"
-cert_filepath="YOUR_CERTIFICATE"
-pri_key_filepath="YOUR_PRIVATE_KEY"
-ca_filepath="AWS_IOT_ROOT_CERT"
-clientId="AWS_IOT_CLIENT_ID"
-message_topic="MQTT_TOPIC"
+config = configparser.ConfigParser()
+config.read('weather-station.ini')
+
+endpoint=config['AWS']['endpoint']
+cert_filepath=config['AWS']['cert_filepath']
+pri_key_filepath=config['AWS']['pri_key_filepath']
+ca_filepath=config['AWS']['ca_filepath']
+clientId=config['AWS']['clientId']
+message_topic=config['AWS']['message_topic']
 
 # Callback when connection is accidentally lost.
 def on_connection_interrupted(connection, error, **kwargs):
@@ -92,7 +95,7 @@ def get_temperature_and_humidity():
         raise error
 
 # BME280 sensor address (default address)
-address = 0x77
+address = config['DEVICES']['address']
 bus = smbus2.SMBus(1)
 calibration_params = bme280.load_calibration_params(bus, address)
 

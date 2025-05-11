@@ -10,15 +10,19 @@ import threading
 import time
 import json
 import requests
+import configparser
 
-endpoint="AWS_IOT_ENDPOINT"
-cert_filepath="YOUR_CERTIFICATE"
-pri_key_filepath="YOUR_PRIVATE_KEY"
-ca_filepath="AWS_IOT_ROOT_CERT"
-clientId="AWS_IOT_CLIENT_ID"
-message_topic="MQTT_TOPIC"
-station_id="STATION_ID"
-station_pass="STATION_PASS"
+config = configparser.ConfigParser()
+config.read('weather-station.ini')
+
+endpoint=config['AWS']['endpoint']
+cert_filepath=config['AWS']['cert_filepath']
+pri_key_filepath=config['AWS']['pri_key_filepath']
+ca_filepath=config['AWS']['ca_filepath']
+clientId=config['AWS']['clientId']
+message_topic=config['AWS']['message_topic']
+station_id=config['WU']['station_id']
+station_pass=config['WU']['station_pass']
 
 received_all_event = threading.Event()
 
