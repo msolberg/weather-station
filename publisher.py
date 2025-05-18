@@ -96,8 +96,9 @@ def get_temperature_and_humidity():
 
 # BME280 sensor address (default address)
 address = config['DEVICES']['address']
-bus = smbus2.SMBus(1)
-calibration_params = bme280.load_calibration_params(bus, address)
+if address != "None":
+    bus = smbus2.SMBus(1)
+    calibration_params = bme280.load_calibration_params(bus, address)
 
 def celsius_to_fahrenheit(celsius):
     return (celsius * 9/5) + 32
@@ -130,7 +131,8 @@ if __name__ == '__main__':
 
     while True:
         data = get_temperature_and_humidity()
-        data['pressure'] = get_pressure()
+        if address != "None":
+            data['pressure'] = get_pressure()
         message = json.dumps(data)
         if data['temperature_f'] is not None:
             print("Publishing message to topic '{}': {}".format(message_topic, message))
