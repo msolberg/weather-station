@@ -31,6 +31,10 @@ temperature = 69
 humidity = 50
 pressure = 966
 
+# Let's not kill the National Weather Service
+nws_cooldown = 24
+nws_cache = {}
+
 outside_temperature = Gauge('outside_temperature', 'Outside temperature (f)')
 outside_temperature.set(temperature)
 
@@ -38,6 +42,41 @@ outside_humidity = Gauge('outside_humidity', 'Outside humidity (%)')
 outside_humidity.set(humidity)
 
 # TODO: Add pressure once we get that working again
+
+# Grab NWS data for pieces we're missing
+def get_nws_data():
+    global config
+    global nws_cooldown
+    global nws_cache
+    
+    station_id = config['NWS']['station_id']
+    require_qc = config['NWS']['require_qc']
+    print("%d"% nws_cooldown)
+    data = {}
+    if nws_cooldown == 24:
+        nws_cooldown = nws_cooldown - 1
+        r = requests.get("https://api.weather.gov/stations/%s/observations/latest?require_qc=%s"% (station_id, require_qc))
+        if r.status_code == 200:
+            d = json.loads(r.text)
+            nws_cache = d
+        else:
+            print("Unable to get weather data from NWS")
+            return data
+    else:
+        if nws_cooldown == 0:
+            nws_cooldown = 24
+        else:
+            nws_cooldown = nws_cooldown - 1
+        d = nws_cache
+
+    try:
+        data['dewpoint'] = d['properties']['dewpoint']['value']
+        data['pressure'] = d['properties']['barometricPressure']['value']
+        data['windSpeed'] = d['properties']['windSpeed']['value']
+        data['windDirection'] = d['properties']['windDirection']['value']
+    except KeyError:
+        print("Couldn't load all the data from NWS: %s"% data)
+    return data
 
 # Callback when connection is accidentally lost.
 def on_connection_interrupted(connection, error, **kwargs):
@@ -82,6 +121,12 @@ def on_message_received(topic, payload, dup, qos, retain, **kwargs):
     except KeyError:
         print("Received missing data %s"% (payload))
 
+    if 'pressure' not in data.keys():
+        # We'll grab the pressure from NWS
+        nws_data = get_nws_data()
+        if 'pressure' in nws_data.keys():
+            data['pressure'] = nws_data['pressure']
+    
     if 'pressure' in data.keys():
         inches = float(pressure) / 33.8639
         # https://en.wikipedia.org/wiki/Dew_point#Simple_approximation
@@ -92,7 +137,7 @@ def on_message_received(topic, payload, dup, qos, retain, **kwargs):
         if r.status_code == 200:
             print("Uploaded data to Wunderground")
     else:
-        # We've only got a DHT22
+        # We've only got a DHT22 and we couldn't get the data from NWS
         outside_temperature.set(temperature)
         outside_humidity.set(humidity)
         # Send data to Wunderground
