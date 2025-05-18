@@ -127,7 +127,8 @@ def on_message_received(topic, payload, dup, qos, retain, **kwargs):
         # We'll grab the pressure from NWS
         nws_data = get_nws_data()
         if 'pressure' in nws_data.keys():
-            data['pressure'] = nws_data['pressure']
+            pressure = nws_data['pressure']
+            data['pressure'] = pressure
     
     if 'pressure' in data.keys():
         outside_temperature.set(temperature)
