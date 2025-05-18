@@ -5,6 +5,7 @@
 
 from awscrt import mqtt, http
 from awsiot import mqtt_connection_builder
+from prometheus_client import start_http_server, Gauge
 import sys
 import threading
 import time
@@ -30,6 +31,13 @@ temperature = 69
 humidity = 50
 pressure = 966
 
+outside_temperature = Gauge('outside_temperature', 'Outside temperature (f)')
+outside_temperature.set(temperature)
+
+outside_humidity = Gauge('outside_humidity', 'Outside humidity (%)')
+outside_humidity.set(humidity)
+
+# TODO: Add pressure once we get that working again
 
 # Callback when connection is accidentally lost.
 def on_connection_interrupted(connection, error, **kwargs):
@@ -85,6 +93,9 @@ def on_message_received(topic, payload, dup, qos, retain, **kwargs):
             print("Uploaded data to Wunderground")
     else:
         # We've only got a DHT22
+        outside_temperature.set(temperature)
+        outside_humidity.set(humidity)
+        # Send data to Wunderground
         r = requests.get("https://weatherstation.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&humidity=%s&tempf=%s&action=updateraw"% (station_id, station_pass, humidity, temperature))
         if r.status_code == 200:
             print("Uploaded data to Wunderground")
@@ -104,6 +115,9 @@ def on_connection_closed(connection, callback_data):
     print("Connection closed")
 
 if __name__ == '__main__':
+    # Start the status page
+    start_http_server(8000)
+
     # Create a MQTT connection from the command line data
     mqtt_connection = mqtt_connection_builder.mtls_from_path(
         endpoint=endpoint,
