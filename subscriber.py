@@ -41,7 +41,9 @@ outside_temperature.set(temperature)
 outside_humidity = Gauge('outside_humidity', 'Outside humidity (%)')
 outside_humidity.set(humidity)
 
-# TODO: Add pressure once we get that working again
+outside_pressure = Gauge('outside_pressure', 'Outside air pressure (mb)')
+outside_pressure.set(pressure)
+
 
 # Grab NWS data for pieces we're missing
 def get_nws_data():
@@ -51,7 +53,7 @@ def get_nws_data():
     
     station_id = config['NWS']['station_id']
     require_qc = config['NWS']['require_qc']
-    print("%d"% nws_cooldown)
+    
     data = {}
     if nws_cooldown == 24:
         nws_cooldown = nws_cooldown - 1
@@ -128,6 +130,9 @@ def on_message_received(topic, payload, dup, qos, retain, **kwargs):
             data['pressure'] = nws_data['pressure']
     
     if 'pressure' in data.keys():
+        outside_temperature.set(temperature)
+        outside_humidity.set(humidity)
+        outside_pressure.set(pressure)
         inches = float(pressure) / 33.8639
         # https://en.wikipedia.org/wiki/Dew_point#Simple_approximation
         dewpoint = float(temperature) - 9/25 * (100 - float(humidity))
@@ -161,7 +166,7 @@ def on_connection_closed(connection, callback_data):
 
 if __name__ == '__main__':
     # Start the status page
-    start_http_server(8000)
+    start_http_server(8001)
 
     # Create a MQTT connection from the command line data
     mqtt_connection = mqtt_connection_builder.mtls_from_path(
