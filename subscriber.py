@@ -73,16 +73,21 @@ def on_message_received(topic, payload, dup, qos, retain, **kwargs):
         return
     except KeyError:
         print("Received missing data %s"% (payload))
-        return
-    
-    # Send data to Wunderground
-    inches = float(pressure) / 33.8639
-    # https://en.wikipedia.org/wiki/Dew_point#Simple_approximation
-    dewpoint = float(temperature) - 9/25 * (100 - float(humidity))
-    print("Got temperature %s, humidity %s, pressure %s, calculated dewpoint %s"% (temperature, humidity, pressure, dewpoint))
-    r = requests.get("https://weatherstation.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&humidity=%s&tempf=%s&baromin=%s&dewptf=%s&action=updateraw"% (station_id, station_pass, humidity, temperature, inches, dewpoint))
-    if r.status_code == 200:
-        print("Uploaded data to Wunderground")
+
+    if 'pressure' in data.keys():
+        inches = float(pressure) / 33.8639
+        # https://en.wikipedia.org/wiki/Dew_point#Simple_approximation
+        dewpoint = float(temperature) - 9/25 * (100 - float(humidity))
+        print("Got temperature %s, humidity %s, pressure %s, calculated dewpoint %s"% (temperature, humidity, pressure, dewpoint))
+        # Send data to Wunderground
+        r = requests.get("https://weatherstation.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&humidity=%s&tempf=%s&baromin=%s&dewptf=%s&action=updateraw"% (station_id, station_pass, humidity, temperature, inches, dewpoint))
+        if r.status_code == 200:
+            print("Uploaded data to Wunderground")
+    else:
+        # We've only got a DHT22
+        r = requests.get("https://weatherstation.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&humidity=%s&tempf=%s&action=updateraw"% (station_id, station_pass, humidity, temperature))
+        if r.status_code == 200:
+            print("Uploaded data to Wunderground")
 
 # Callback when the connection successfully connects
 def on_connection_success(connection, callback_data):
