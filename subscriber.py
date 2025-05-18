@@ -73,7 +73,7 @@ def get_nws_data():
 
     try:
         data['dewpoint'] = d['properties']['dewpoint']['value']
-        data['pressure'] = d['properties']['barometricPressure']['value']
+        data['pressure'] = d['properties']['barometricPressure']['value'] / 100
         data['windSpeed'] = d['properties']['windSpeed']['value']
         data['windDirection'] = d['properties']['windDirection']['value']
     except KeyError:
