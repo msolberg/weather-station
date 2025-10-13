@@ -27,30 +27,38 @@ station_pass=config['WU']['station_pass']
 
 received_all_event = threading.Event()
 
-temperature = 69
-humidity = 50
-pressure = 966
+# These are the global variables we're exposing
+outside_temperature = 69
+outside_humidity = 50
+outside_pressure = 966
+inside_temperature = 69
+inside_humidity = 50
+inside_voc = 25869
+
+inside_temperature_gauge = Gauge('inside_temperature', 'Inside temperature (f)')
+inside_temperature_gauge.set(inside_temperature)
+
+inside_humidity_gauge = Gauge('inside_humidity', 'Inside humidity (%)')
+inside_humidity_gauge.set(inside_humidity)
+
+inside_voc_gauge = Gauge('inside_voc', 'Inside VOC')
+inside_voc_gauge.set(inside_voc)
+
+outside_temperature_gauge = Gauge('outside_temperature', 'Outside temperature (f)')
+outside_temperature_gauge.set(outside_temperature)
+
+outside_humidity_gauge = Gauge('outside_humidity', 'Outside humidity (%)')
+outside_humidity_gauge.set(outside_humidity)
+
+outside_pressure_gauge = Gauge('outside_pressure', 'Outside air pressure (mb)')
+outside_pressure_gauge.set(outside_pressure)
 
 # Let's not kill the National Weather Service
 nws_cooldown = 24
 nws_cache = {}
 
-outside_temperature = Gauge('outside_temperature', 'Outside temperature (f)')
-outside_temperature.set(temperature)
-
-outside_humidity = Gauge('outside_humidity', 'Outside humidity (%)')
-outside_humidity.set(humidity)
-
-outside_pressure = Gauge('outside_pressure', 'Outside air pressure (mb)')
-outside_pressure.set(pressure)
-
-
-# Grab NWS data for pieces we're missing
+# Grab NWS data for pieces we're missing - unused for now.
 def get_nws_data():
-    global config
-    global nws_cooldown
-    global nws_cache
-    
     station_id = config['NWS']['station_id']
     require_qc = config['NWS']['require_qc']
     
@@ -104,12 +112,29 @@ def on_resubscribe_complete(resubscribe_future):
         if qos is None:
             sys.exit("Server rejected resubscribe to topic: {}".format(topic))
 
+def send_data_to_wunderground():
+    # Send data to Wunderground
+    # do some conversions on the data
+    inches = float(outside_pressure) / 33.8639
+    # https://en.wikipedia.org/wiki/Dew_point#Simple_approximation
+    dewpoint = float(outside_temperature) - 9/25 * (100 - float(outside_humidity))
+    print("Got temperature %s, humidity %s, pressure %s, calculated dewpoint %s"% (outside_temperature, outside_humidity, outside_pressure, dewpoint))
+
+    r = requests.get("https://weatherstation.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&humidity=%s&tempf=%s&baromin=%s&dewptf=%s&action=updateraw"% (station_id, station_pass, outside_humidity, outside_temperature, inches, dewpoint))
+    if r.status_code == 200:
+        print("Uploaded data to Wunderground")
+    else:
+        print("Error uploading data to Wunderground %d"% (r.status_code,))
+
 # Callback when the subscribed topic receives a message
 def on_message_received(topic, payload, dup, qos, retain, **kwargs):
     print("Received message from topic '{}': {}".format(topic, payload))
-    global temperature
-    global humidity
-    global pressure
+    global inside_temperature
+    global inside_humidity
+    global inside_voc
+    global outside_temperature
+    global outside_humidity
+    global outside_pressure
 
     try:
         data = json.loads(payload)
@@ -117,39 +142,32 @@ def on_message_received(topic, payload, dup, qos, retain, **kwargs):
         temperature = data['temperature_f']
         humidity = data['humidity']
         pressure = data['pressure']
+        voc = data['gas']
     except json.decoder.JSONDecodeError:
         print("Received malformed message %s"% (payload))
         return
     except KeyError:
-        print("Received missing data %s"% (payload))
+        print("Received data %s"% (payload))
 
-    if 'pressure' not in data.keys():
-        # We'll grab the pressure from NWS
-        nws_data = get_nws_data()
-        if 'pressure' in nws_data.keys():
-            pressure = nws_data['pressure']
-            data['pressure'] = pressure
-    
     if 'pressure' in data.keys():
-        outside_temperature.set(temperature)
-        outside_humidity.set(humidity)
-        outside_pressure.set(pressure)
-        inches = float(pressure) / 33.8639
-        # https://en.wikipedia.org/wiki/Dew_point#Simple_approximation
-        dewpoint = float(temperature) - 9/25 * (100 - float(humidity))
-        print("Got temperature %s, humidity %s, pressure %s, calculated dewpoint %s"% (temperature, humidity, pressure, dewpoint))
-        # Send data to Wunderground
-        r = requests.get("https://weatherstation.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&humidity=%s&tempf=%s&baromin=%s&dewptf=%s&action=updateraw"% (station_id, station_pass, humidity, temperature, inches, dewpoint))
-        if r.status_code == 200:
-            print("Uploaded data to Wunderground")
+        # This is from the bme688 inside the house
+        inside_temperature = temperature
+        inside_humidity = humidity
+        outside_pressure = pressure
+        inside_voc = voc
+        inside_temperature_gauge.set(temperature)
+        inside_humidity_gauge.set(humidity)
+        outside_pressure_gauge.set(pressure)
+        inside_voc_gauge.set(voc)
     else:
-        # We've only got a DHT22 and we couldn't get the data from NWS
-        outside_temperature.set(temperature)
-        outside_humidity.set(humidity)
-        # Send data to Wunderground
-        r = requests.get("https://weatherstation.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&humidity=%s&tempf=%s&action=updateraw"% (station_id, station_pass, humidity, temperature))
-        if r.status_code == 200:
-            print("Uploaded data to Wunderground")
+        # This is from the DHT outside the house
+        outside_temperature = temperature
+        outside_humidity = humidity
+        outside_temperature_gauge.set(temperature)
+        outside_humidity_gauge.set(humidity)
+        # Upload fresh data to Wunderground
+        send_data_to_wunderground()
+    
 
 # Callback when the connection successfully connects
 def on_connection_success(connection, callback_data):
