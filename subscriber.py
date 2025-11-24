@@ -28,12 +28,13 @@ station_pass=config['WU']['station_pass']
 received_all_event = threading.Event()
 
 # These are the global variables we're exposing
-outside_temperature = 69
-outside_humidity = 50
-outside_pressure = 966
-inside_temperature = 69
-inside_humidity = 50
-inside_voc = 25869
+# We'll set them all to zero so that we don't send garbage numbers up the chain
+outside_temperature = 0
+outside_humidity = 0
+outside_pressure = 0
+inside_temperature = 0
+inside_humidity = 0
+inside_voc = 0
 
 inside_temperature_gauge = Gauge('inside_temperature', 'Inside temperature (f)')
 inside_temperature_gauge.set(inside_temperature)
@@ -113,18 +114,27 @@ def on_resubscribe_complete(resubscribe_future):
             sys.exit("Server rejected resubscribe to topic: {}".format(topic))
 
 def send_data_to_wunderground():
-    # Send data to Wunderground
-    # do some conversions on the data
-    inches = float(outside_pressure) / 33.8639
-    # https://en.wikipedia.org/wiki/Dew_point#Simple_approximation
-    dewpoint = float(outside_temperature) - 9/25 * (100 - float(outside_humidity))
-    print("Got temperature %s, humidity %s, pressure %s, calculated dewpoint %s"% (outside_temperature, outside_humidity, outside_pressure, dewpoint))
-
-    r = requests.get("https://weatherstation.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&humidity=%s&tempf=%s&baromin=%s&dewptf=%s&action=updateraw"% (station_id, station_pass, outside_humidity, outside_temperature, inches, dewpoint))
-    if r.status_code == 200:
-        print("Uploaded data to Wunderground")
-    else:
-        print("Error uploading data to Wunderground %d"% (r.status_code,))
+    # Send data to Wunderground every 2 seconds
+    
+    while not received_all_event.is_set():
+        # do some conversions on the data
+        inches = float(outside_pressure) / 33.8639
+        # https://en.wikipedia.org/wiki/Dew_point#Simple_approximation
+        dewpoint = float(outside_temperature) - 9/25 * (100 - float(outside_humidity))
+        print("Sending temperature %s, humidity %s, pressure %s, calculated dewpoint %s"% (outside_temperature, outside_humidity, outside_pressure, dewpoint))
+        
+        # Make sure we have data. Outside humidity should never be 0
+        if (outside_humidity == 0):
+            print("Humidity is 0 - not sending data")
+        else:
+            r = requests.get("https://weatherstation.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&humidity=%s&tempf=%s&baromin=%s&dewptf=%s&action=updateraw"% (station_id, station_pass, outside_humidity, outside_temperature, inches, dewpoint))
+            if r.status_code == 200:
+                print("Uploaded data to Wunderground")
+            else:
+                print("Error uploading data to Wunderground %d"% (r.status_code,))
+        
+        time.sleep(2)
+    
 
 # Callback when the subscribed topic receives a message
 def on_message_received(topic, payload, dup, qos, retain, **kwargs):
@@ -165,8 +175,6 @@ def on_message_received(topic, payload, dup, qos, retain, **kwargs):
         outside_humidity = humidity
         outside_temperature_gauge.set(temperature)
         outside_humidity_gauge.set(humidity)
-        # Upload fresh data to Wunderground
-        send_data_to_wunderground()
     
 
 # Callback when the connection successfully connects
