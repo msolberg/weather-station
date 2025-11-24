@@ -132,8 +132,7 @@ def send_data_to_wunderground():
                 print("Uploaded data to Wunderground")
             else:
                 print("Error uploading data to Wunderground %d"% (r.status_code,))
-        
-        time.sleep(2)
+        time.sleep(5)
     
 
 # Callback when the subscribed topic receives a message
@@ -225,6 +224,10 @@ if __name__ == '__main__':
 
     subscribe_result = subscribe_future.result()
     print("Subscribed with {}".format(str(subscribe_result['qos'])))
+
+    # Send data to wunderground every 2 seconds:
+    wthread = threading.Thread(target=send_data_to_wunderground, args=[], kwargs={})
+    wthread.start()
    
     received_all_event.wait()
 
